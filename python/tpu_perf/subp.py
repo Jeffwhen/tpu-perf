@@ -32,6 +32,8 @@ class CommandExecutor:
             self.threads = max_threads
         self.cwd = cwd
         self.procs = []
+        self.pipes = []
+        self.logs = []
 
     def run(self, *args, **kw_args):
         self.put(*args, **kw_args)
@@ -45,31 +47,36 @@ class CommandExecutor:
         kw_args['env'] = dict(**self.env, **kw_args.get('env', dict()))
         self.procs.append((title, args, kw_args))
 
+    def fire(self, bulk = None):
+        if bulk is None:
+            bulk = self.procs
+        self.logs = []
+        self.pipes = []
+        for title, args, kw_args in bulk:
+            cmd_fn = os.path.join(self.cwd, f'{title}.cmd')
+            with open(cmd_fn, 'w') as f:
+                pprint(args, f)
+                pprint(kw_args, f)
+                f.write(f'\n\n---------------\n{args}\n')
+            log_fn = os.path.join(self.cwd, f'{title}.log')
+            log = open(log_fn, 'w')
+            p = subprocess.Popen(*args, **kw_args, stdout=log, stderr=log)
+            self.logs.append((log_fn, log))
+            self.pipes.append(p)
+
     def drain(self):
-        for bulk in bulkize(self.procs, self.threads):
-            logs = []
-            procs = []
-            for title, args, kw_args in bulk:
-                cmd_fn = os.path.join(self.cwd, f'{title}.cmd')
-                with open(cmd_fn, 'w') as f:
-                    pprint(args, f)
-                    pprint(kw_args, f)
-                    f.write(f'\n\n---------------\n{args}\n')
-                log_fn = os.path.join(self.cwd, f'{title}.log')
-                log = open(log_fn, 'w')
-                p = subprocess.Popen(*args, **kw_args, stdout=log, stderr=log)
-                logs.append((log_fn, log))
-                procs.append(p)
-            for i, p in enumerate(procs):
-                log_fn, log = logs[i]
-                ret = p.wait()
-                log.close()
-                if ret != 0:
-                    logging.error(f'Command failed, please check {log_fn}')
-                    raise RuntimeError('Command failed')
+        for i, p in enumerate(self.pipes):
+            log_fn, log = self.logs[i]
+            ret = p.wait()
+            log.close()
+            if ret != 0:
+                logging.error(f'Command failed, please check {log_fn}')
+                raise RuntimeError('Command failed')
 
     def wait(self):
         try:
-            self.drain()
+            for bulk in bulkize(self.procs, self.threads):
+                self.fire(bulk)
+                self.drain()
         finally:
             self.procs.clear()
