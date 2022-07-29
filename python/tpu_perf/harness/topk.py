@@ -50,15 +50,18 @@ class Runner:
         self.model.put()
 
     def process(self):
+        arg_results = dict()
         while True:
             task_id, results, valid = self.model.get()
             if task_id == 0:
                 break
             output = results[0]
             output = output.reshape(output.shape[0], -1)
-            labels = self.label.pop(task_id)
             argmaxs = np.argmax(output, axis=-1)
             topks = np.argpartition(output, -5)[:, -5:]
+            arg_results[task_id] = (argmaxs, topks)
+        for task_id, (argmaxs, topks) in arg_results.items():
+            labels = self.label.pop(task_id)
             for label, argmax, topk in zip(labels, argmaxs, topks):
                 self.stats['count'] += 1
                 if label == argmax:

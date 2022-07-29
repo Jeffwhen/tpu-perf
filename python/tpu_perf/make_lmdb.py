@@ -82,9 +82,9 @@ def main():
                 futures.append(f)
         else:
             for name in sys.argv[1:]:
-                path, config = tree.read_dir(name)
-                f = executor.submit(build_lmdb, data_dir, tree, path, config)
-                futures.append(f)
+                for path, config in tree.read_dir(name):
+                    f = executor.submit(build_lmdb, data_dir, tree, path, config)
+                    futures.append(f)
 
         for f in as_completed(futures):
             err = f.exception()
