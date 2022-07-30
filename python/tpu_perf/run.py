@@ -67,6 +67,7 @@ def run(tree, path, config, stat_f):
         for v in config.get('run_env', [])]
     pool = CommandExecutor(workdir, env)
     rounds = config.get('time_rounds', 2000)
+    rt_cmp = config.get('runtime_cmp')
     for b in config['bmnetu_batch_sizes']:
         name = f'{b}b.compilation'
         bmodel_dir = os.path.join(workdir, name)
@@ -87,7 +88,7 @@ def run(tree, path, config, stat_f):
         title = f'run.{b}'
         ref_fn = os.path.join(bmodel_dir, 'output_ref_data.dat')
         env = {'BMRUNTIME_PROFILE_OUT_DIR': f'{b}b.profiledata'}
-        if os.path.exists(ref_fn) and os.path.getsize(ref_fn):
+        if rt_cmp and os.path.exists(ref_fn) and os.path.getsize(ref_fn):
             logging.info(f'Runtime test {name}')
             pool.put(
                 title,
