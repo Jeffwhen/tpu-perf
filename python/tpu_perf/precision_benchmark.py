@@ -4,7 +4,6 @@ import csv
 import logging
 from .buildtree import check_buildtree, BuildTree
 
-from .harness import topk
 from .harness import load_plugins
 load_plugins()
 

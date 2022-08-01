@@ -27,9 +27,9 @@ python3 -m tpu_perf.precision_benchmark # To run precision benchmark
 
 ### config.yaml
 
-Required and preset varibles
+#### Preset variables
 
-| Name                  | Type      | Usage                                                                         |
+| Field                 | Type      | Usage                                                                         |
 |-----------------------|-----------|-------------------------------------------------------------------------------|
 | root                  | Preset    | Repo top directory                                                            |
 | home                  | Preset    | Current model directory                                                       |
@@ -38,13 +38,25 @@ Required and preset varibles
 | shape                 | Preset    | Current shape list. Only set if shapes field exists.                          |
 | shape\_key            | Preset    | Current shape string like "1x3x224x224". Only set if shapes field exists.     |
 | shape\_param          | Preset    | Current shape string like "[1,3,224,224]". Only set if shapes field exists.   |
+
+#### Common variables
+
+| Field                 | Type      | Usage                                                                         |
 | name                  | Required  | Specify network name, should be unique                                        |
-| cali                  | Optional  | Calibration command. Will do calibrating if this variable exists              |
-| bmnetu\_options       | Optional  | bmnetu compile options. Will do int8 compiling if this variable exists        |
-| bmnetu\_batch\_sizes  | Optional  | Specify int8 output batches                                                   |
+| gops                  | Optional  | Specify network FLOPs                                                         |
+
+#### NNTC
+
+| Field                     | Type      | Usage                                                                                     |
+| precision                 | Optional  | Boolean type. Indicates whether to build precision model when `tpu_perf.build` is called. |
+| fp32\_compile\_options    | Optional  | Will use this command to build FP32 bmodel.                                               |
+| cali                      | Optional  | Calibration command. `tpu_perf.build` will do calibrating if this variable exists.        |
+| time\_only\_cali          | Optional  | Calibration command. `tpu_perf.build --time` will do calibrating if this variable exists. |
+| bmnetu\_options           | Optional  | bmnetu compile options. Will do int8 compiling if this variable exists                    |
+| bmnetu\_batch\_sizes      | Optional  | Specify int8 output batches                                                               |
+| harness                   | Optional  | Harness to call when `tpu_perf.precision_benchmark` is called.                            |
+| lmdb                      | Optional  | This object is provided to dataset and harness plugins to do preprocess.                  |
+
+#### MLIR
 
 Variables in top level `config.yaml` are also set for all models.
-
-| Name          | Usage                                                                     |
-|---------------|---------------------------------------------------------------------------|
-| nnmodels      | Path of nnmodels repo                                                     |
