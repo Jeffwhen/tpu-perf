@@ -68,6 +68,9 @@ def run(tree, path, config, stat_f):
     pool = CommandExecutor(workdir, env)
     rounds = config.get('time_rounds', 2000)
     rt_cmp = config.get('runtime_cmp')
+    iter_opt = tree.global_config.get('iter_opt', '--loopnum')
+    if 'iter_opt' in config:
+        iter_opt = config['iter_opt']
     for b in config['bmnetu_batch_sizes']:
         name = f'{b}b.compilation'
         bmodel_dir = os.path.join(workdir, name)
@@ -84,6 +87,9 @@ def run(tree, path, config, stat_f):
             info = parse_profile(profile_path)
             rounds = int(1200 / info['runtime'])
             logging.info(f'Run {rounds} times for {name}.{b}b')
+        max_rounds = 500000
+        if rounds > max_rounds:
+            rounds = max_rounds
 
         title = f'run.{b}'
         ref_fn = os.path.join(bmodel_dir, 'output_ref_data.dat')
@@ -92,13 +98,13 @@ def run(tree, path, config, stat_f):
             logging.info(f'Runtime test {name}')
             pool.put(
                 title,
-                ['bmrt_test', '--loopnum', str(rounds), '--context', bmodel_dir],
+                ['bmrt_test', iter_opt, str(rounds), '--context', bmodel_dir],
                 env=env, shell=False)
         else:
             logging.info(f'Runtime test {name} without reference')
             pool.put(
                 title,
-                ['bmrt_test', '--loopnum', str(rounds), '--bmodel', bmodel],
+                ['bmrt_test', iter_opt, str(rounds), '--bmodel', bmodel],
                 env=env, shell=False)
         try:
             pool.fire()
@@ -115,6 +121,8 @@ def run(tree, path, config, stat_f):
             stats = parse_stats(f.read())
         from math import nan
         real_time = stats['calculate'] * 1000 if 'calculate' in stats else nan
+        if 'calculate_times' in iter_opt:
+            real_time /= rounds
         row = [
             config['name'],
             stats['shape'],

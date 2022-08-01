@@ -19,14 +19,16 @@ def sys_memory_size():
        return int(m.group(1))
 
 class CommandExecutor:
-    def __init__(self, cwd, env):
+    def __init__(self, cwd, env, memory_hint = None):
+        if memory_hint is None:
+            memory_hint = 1024 * 1024 * 7
         import os
         self.env = os.environ.copy()
         for v in env:
             pair = v.split('=')
             self.env[pair[0].strip()] = pair[1].strip() if len(pair) > 1 else ""
         mem_size = sys_memory_size()
-        max_threads = max(1, int(mem_size / 1024 / 1024 / 4))
+        max_threads = max(1, int(mem_size / memory_hint))
         self.threads = 4
         if self.threads > max_threads:
             self.threads = max_threads

@@ -62,7 +62,9 @@ def build(tree, path, config):
         fp32_pool.wait()
         logging.info(f'FP32 bmodel {name} done.')
 
-    int8_pool = CommandExecutor(workdir, env)
+    int8_pool = CommandExecutor(
+        workdir, env,
+        memory_hint=config.get('memory_hint'))
 
     cali_key = 'time_only_cali' if option_time_only else 'cali'
 
