@@ -42,12 +42,14 @@ python3 -m tpu_perf.precision_benchmark # To run precision benchmark
 #### Common variables
 
 | Field                 | Type      | Usage                                                                         |
+|-----------------------|-----------|-------------------------------------------------------------------------------|
 | name                  | Required  | Specify network name, should be unique                                        |
 | gops                  | Optional  | Specify network FLOPs                                                         |
 
 #### NNTC
 
 | Field                     | Type      | Usage                                                                                     |
+|---------------------------|-----------|-------------------------------------------------------------------------------------------|
 | precision                 | Optional  | Boolean type. Indicates whether to build precision model when `tpu_perf.build` is called. |
 | fp32\_compile\_options    | Optional  | Will use this command to build FP32 bmodel.                                               |
 | cali                      | Optional  | Calibration command. `tpu_perf.build` will do calibrating if this variable exists.        |

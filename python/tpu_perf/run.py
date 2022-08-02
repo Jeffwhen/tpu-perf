@@ -86,10 +86,10 @@ def run(tree, path, config, stat_f):
         if os.path.exists(profile_path):
             info = parse_profile(profile_path)
             rounds = int(1200 / info['runtime'])
-            logging.info(f'Run {rounds} times for {name}.{b}b')
-        max_rounds = 500000
+        max_rounds = 10000
         if rounds > max_rounds:
             rounds = max_rounds
+        logging.info(f'Run {rounds} times for {name}.{b}b')
 
         title = f'run.{b}'
         ref_fn = os.path.join(bmodel_dir, 'output_ref_data.dat')

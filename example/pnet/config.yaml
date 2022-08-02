@@ -16,7 +16,7 @@ fp32_compile_options:
   --opt 1
   --cmp 1
 
-cali:
+time_only_cali:
   python3 -m ufw.cali.cali_model
     --model $(model)
     --weights $(weight)
