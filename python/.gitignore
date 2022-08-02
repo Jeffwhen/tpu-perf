@@ -1,0 +1,6 @@
+build/
+dist/
+*.egg-info/
+tpu_perf/libpipeline.so
+tpu_perf/blob*pb*
+__pycache__
