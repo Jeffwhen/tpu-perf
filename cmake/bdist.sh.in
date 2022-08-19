@@ -1,0 +1,5 @@
+#!/bin/bash
+
+rm -rvf tpu_perf.egg-info
+rm -rvf build
+python3 ./setup.py bdist_wheel --plat-name manylinux2014_${CMAKE_SYSTEM_PROCESSOR}

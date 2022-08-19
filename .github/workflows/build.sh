@@ -8,6 +8,7 @@ set -eE
 DEBIAN_FRONTEND=noninteractive
 [ "$EUID" -eq 0 ] || sudo="sudo -E"
 $sudo apt-get install -y libhdf5-dev libatlas-base-dev libboost-system-dev
+$sudo apt-get install -y g++-aarch64-linux-gnu gcc-aarch64-linux-gnu
 
 pip3 install setuptools wheel
 
@@ -22,6 +23,14 @@ wget -O /tmp/$protoc_zip \
 unzip -o -d /tmp/ /tmp/$protoc_zip
 PATH=$PATH:/tmp/bin
 
+# aarch64
+mkdir -p $DIR/aarch64_build
+pushd $DIR/aarch64_build
+cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/aarch64-toolchain.cmake -Dsg_PATH=$libsophon_dst ..
+make install/strip
+popd
+
+# x86_64
 mkdir -p $DIR/build
 pushd $DIR/build
 cmake -Dsg_PATH=$libsophon_dst ..

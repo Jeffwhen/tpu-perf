@@ -34,18 +34,8 @@ add_custom_command(
     VERBATIM)
 add_custom_target(proto ALL DEPENDS ${proto_srcs})
 
+configure_file(cmake/bdist.sh.in bdist.sh)
+
 install(TARGETS pipeline LIBRARY DESTINATION .)
 install(FILES ${proto_srcs} DESTINATION .)
 install(SCRIPT ${CMAKE_SOURCE_DIR}/cmake/postinst.cmake)
-
-#find_package(lmdb REQUIRED)
-#add_library(db ${proto_srcs} db.cpp)
-#target_include_directories(db
-#    INTERFACE
-#    ${CMAKE_SOURCE_DIR}
-#    ${CMAKE_BINARY_DIR})
-#target_link_libraries(db PUBLIC lmdb::lmdb)
-
-# C++ Harness
-#add_subdirectory(imagenet)
-

@@ -1,9 +1,24 @@
-include(FindPackageHandleStandardArgs)
-
 if (DEFINED sg_PATH)
     set(sg_include_path ${sg_PATH}/include)
     set(sg_lib_path ${sg_PATH}/lib)
 endif()
+
+if (NOT "${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86_64")
+    function(dummy_lib name)
+        add_library(${name} SHARED ${CMAKE_SOURCE_DIR}/cmake/dummy.cpp)
+        target_include_directories(${name} PUBLIC ${sg_include_path})
+        add_library(sg::${name} ALIAS ${name})
+        list(APPEND sg_LIBRARIES sg::${name})
+        set(sg_LIBRARIES ${sg_LIBRARIES} PARENT_SCOPE)
+    endfunction()
+
+    dummy_lib(bmrt)
+    dummy_lib(bmlib)
+
+    return()
+endif()
+
+include(FindPackageHandleStandardArgs)
 
 find_path(
     sg_INCLUDE_DIR
