@@ -3,7 +3,7 @@ if (DEFINED sg_PATH)
     set(sg_lib_path ${sg_PATH}/lib)
 endif()
 
-if (NOT "${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "x86_64")
+if (CMAKE_TOOLCHAIN_FILE)
     function(dummy_lib name)
         add_library(${name} SHARED ${CMAKE_SOURCE_DIR}/cmake/dummy.cpp)
         target_include_directories(${name} PUBLIC ${sg_include_path})
