@@ -32,6 +32,9 @@ def iter_shared_objects():
 packages = ['tpu_perf']
 so_list = list(iter_shared_objects())
 
+if_x86 = any(('x86_64' in arg) for arg in sys.argv)
+protobuf = 'protobuf==3.19.*' if if_x86 else 'protobuf'
+
 setup(
     version=get_version_from_tag(),
     author='sophgo',
@@ -40,7 +43,7 @@ setup(
     license='Apache',
     name='tpu_perf',
     url='https://www.sophgo.com/',
-    install_requires=['numpy', 'lmdb', 'protobuf==3.19.*', 'psutil', 'pyyaml'],
+    install_requires=['numpy', 'lmdb', protobuf, 'psutil', 'pyyaml'],
     packages=find_packages(),
     include_package_data=True,
     package_data={'tpu_perf': so_list})
