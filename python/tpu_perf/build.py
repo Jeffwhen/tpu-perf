@@ -6,6 +6,7 @@ import re
 from .buildtree import check_buildtree, BuildTree
 from .subp import CommandExecutor, sys_memory_size
 from .util import *
+import time
 
 def replace_shape_batch(cmd, batch_size):
     match = re.search('-shapes *(\[.*\])', cmd)
@@ -99,10 +100,14 @@ def build_nntc(tree, path, config):
 
         cmd = tree.expand_variables(config, config[cali_key])
         logging.info(f'Calibrating {name}...')
+        start = time.monotonic()
         int8_pool.run(cali_key, cmd)
+        elaps = format_seconds(time.monotonic() - start)
+        logging.info(f'{name} calibration finished in {elaps}.')
 
     if 'fp32_compile_options' in config:
         fp32_pool = CommandExecutor(workdir, env)
+        start = time.monotonic()
         logging.info(f'Building FP32 bmodel {name}...')
         batch_sizes = config.get('fp32_batch_sizes', [1]) \
             if not option_time_only else [1]
@@ -123,10 +128,12 @@ def build_nntc(tree, path, config):
                     outdir,
                     f'{batch_cmd} --outdir {outdir}')
         fp32_pool.wait()
-        logging.info(f'FP32 bmodel {name} done.')
+        elaps = format_seconds(time.monotonic() - start)
+        logging.info(f'FP32 bmodel {name} done in {elaps}.')
 
     if 'bmnetu_options' in config:
         # Build int8 bmodel
+        start = time.monotonic()
         logging.info(f'Compiling {name}...')
         int8_loops = config.get('int8_loops') or \
             tree.global_config.get('int8_loops') or [dict()]
@@ -141,7 +148,8 @@ def build_nntc(tree, path, config):
                     outdir,
                     f'{cmd} --max_n {b} --outdir {outdir}')
         int8_pool.wait()
-        logging.info(f'INT8 bmodel {name} done.')
+        elaps = format_seconds(time.monotonic() - start)
+        logging.info(f'INT8 bmodel {name} done in {elaps}.')
 
 def main():
     logging.basicConfig(
@@ -174,6 +182,7 @@ def main():
     build_fn = build_mlir if args.mlir else build_nntc
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
+    ret = 0
     with ThreadPoolExecutor(max_workers=num_workers) as executor:
         futures = []
 
@@ -184,9 +193,13 @@ def main():
         for f in as_completed(futures):
             err = f.exception()
             if err:
-                logging.error(f'Quit because of exception, {err}')
                 if args.exit_on_error:
+                    logging.error(f'Quit because of exception, {err}')
                     os._exit(-1)
+                else:
+                    logging.warning(f'Task failed, {err}')
+                    ret = -1
+    sys.exit(ret)
 
 if __name__ == '__main__':
     main()
