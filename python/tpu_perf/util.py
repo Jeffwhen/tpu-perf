@@ -22,3 +22,10 @@ def dict_override(a, b):
         r[k] = v
     return r
 
+from datetime import timedelta
+def format_seconds(s):
+    delta = timedelta(seconds=s)
+    pairs = zip(
+        [int(v.split('.')[0]) for v in str(delta).split(':')],
+        ['hours', 'minutes', 'seconds'])
+    return ' '.join(f'{v} {u}' for v, u in pairs if v) or '0 second'
