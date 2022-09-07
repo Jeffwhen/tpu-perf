@@ -1,12 +1,14 @@
 import os
 import re
 import csv
+import math
 import psutil
 import sys
 import time
 import logging
 from .buildtree import check_buildtree, BuildTree
 from .subp import CommandExecutor
+from .util import *
 
 option_cmodel_stats = False
 
@@ -59,15 +61,15 @@ def format_float(v):
     else:
         return f'{v:.03e}'
 
-def run_model(tree, config, name, b, profile_path, bmodel, stat_f):
-    title = f'run.{b}'
+def run_model(tree, config, name, b, profile_path, bmodel, stat_f, extra):
+    title = f'run.{name}'
     workdir = config['workdir']
     env = [
         tree.expand_variables(config, v)
         for v in config.get('run_env', [])]
     env.append('BMRUNTIME_PROFILE_OUT_DIR={b}b.profiledata')
     pool = CommandExecutor(workdir, env)
-    rounds = config.get('time_rounds', 2000)
+    rounds = math.ceil(config.get('time_rounds', 2000) / b)
     rt_cmp = config.get('runtime_cmp')
     iter_opt = tree.global_config.get('iter_opt', '--loopnum')
     if 'iter_opt' in config:
@@ -82,20 +84,24 @@ def run_model(tree, config, name, b, profile_path, bmodel, stat_f):
     max_rounds = 10000
     if rounds > max_rounds:
         rounds = max_rounds
-    logging.info(f'Run {rounds} times for {name}')
+
+    full_name = f'{config["name"]} {name}'
+    logging.info(f'Run {rounds} times for {full_name}')
 
     ref_fn = os.path.join(bmodel_dir, 'output_ref_data.dat')
+    dev = tree.global_config['devices'][0]
+    cmd_opts = ['bmrt_test', iter_opt, str(rounds), '--dev', str(dev)]
     if rt_cmp and os.path.exists(ref_fn) and os.path.getsize(ref_fn):
-        logging.info(f'Runtime test {name}')
+        logging.info(f'Runtime test {full_name}')
         pool.put(
             title,
-            ['bmrt_test', iter_opt, str(rounds), '--context', bmodel_dir],
+            [*cmd_opts, '--context', bmodel_dir],
             shell=False)
     else:
-        logging.info(f'Runtime test {name} without reference')
+        logging.info(f'Runtime test {full_name} without reference')
         pool.put(
             title,
-            ['bmrt_test', iter_opt, str(rounds), '--bmodel', bmodel],
+            [*cmd_opts, '--bmodel', bmodel],
             shell=False)
     try:
         pool.fire()
@@ -105,7 +111,7 @@ def run_model(tree, config, name, b, profile_path, bmodel, stat_f):
         pool.drain()
         pool.procs.clear()
     except RuntimeError:
-        logging.error(f'Runtime test {name} failed')
+        logging.error(f'Runtime test {full_name} failed')
 
     log_fn = os.path.join(workdir, f'{title}.log')
     with open(log_fn) as f:
@@ -116,18 +122,28 @@ def run_model(tree, config, name, b, profile_path, bmodel, stat_f):
         real_time /= rounds
     row = [
         config['name'],
+        *[config.get(k, '') for k in extra],
         stats['shape'],
         format_float(config['gops'] * b) if 'gops' in config else 'N/A',
         format_float(real_time)]
 
     # If profile exists, calculate mac & ddr utilization
+    if tree.global_config['target'] == 'BM1684':
+        mac_total = 17.6
+        ddr_total = 32
+    elif tree.global_config['target'] == 'BM1684X':
+        mac_total = 32
+        ddr_total = 64
+    else:
+        logging.error(f'Invalid target {tree.global_config["target"]}')
+        raise RuntimeError('Invalid target')
     if info is not None:
         s2l = info['S2L']
         l2s = info['L2S']
         s2s = info['S2S']
-        calc_mac_util = lambda t: config['gops'] * b / t / 32
+        calc_mac_util = lambda t: config['gops'] * b / t / mac_total
         calc_ddr_bandwidth = lambda t: \
-            (s2l + l2s + s2s * 2) / t * 1000 / 1024**3 / 64
+            (s2l + l2s + s2s * 2) / t * 1000 / 1024**3 / ddr_total
 
         est_time = info['runtime']
         if option_cmodel_stats:
@@ -146,10 +162,12 @@ def run_model(tree, config, name, b, profile_path, bmodel, stat_f):
         row.append(f'{calc_ddr_bandwidth(real_time):.2%}')
         if option_cmodel_stats:
             row.append(f'{calc_ddr_bandwidth(est_time):.2%}')
+    else:
+        row.extend(['N/A'] * (6 if option_cmodel_stats else 3))
 
     stat_f.writerow(row)
 
-def run_mlir(tree, path, config, stat_f):
+def run_mlir(tree, path, config, stat_f, extra):
     workdir = config['workdir']
     for dirpath, dirnames, filenames in os.walk(workdir):
         for fn in filenames:
@@ -168,21 +186,58 @@ def run_mlir(tree, path, config, stat_f):
                 bmodel,
                 stat_f)
 
-def run_nntc(tree, path, config, stat_f):
-    if not config.get('time', True):
+def run_nntc(tree, path, raw_config, stat_f, extra):
+    if not raw_config.get('time', True):
         return
-    workdir = config['workdir']
-    for b in config['bmnetu_batch_sizes']:
-        name = f'{b}b.compilation'
-        bmodel_dir = os.path.join(workdir, name)
-        name = os.path.join(os.path.basename(workdir.strip('/')), name)
-        bmodel = os.path.join(bmodel_dir, 'compilation.bmodel')
-        if not os.path.exists(bmodel):
-            logging.warning(f'{bmodel} does not exist')
-            continue
-        profile_fn = 'compiler_profile_0.txt'
-        profile_path = os.path.join(bmodel_dir, profile_fn)
-        run_model(tree, config, name, b, profile_path, bmodel, stat_f)
+    workdir = raw_config['workdir']
+
+    profile_fn = 'compiler_profile_0.dat' \
+        if tree.global_config['target'] == 'BM1684' else \
+        'compiler_profile_0.txt'
+    fp32_loops = raw_config.get('fp32_loops') or \
+        tree.global_config.get('fp32_loops') or [dict()]
+    for loop in fp32_loops:
+        config = dict_override(raw_config, loop)
+        batch_sizes = config.get('fp32_batch_sizes', [1])
+        for b in batch_sizes:
+            name = config.get('fp32_outdir_template', '{}b.fp32.compilation').format(b)
+            bmodel_dir = os.path.join(workdir, name)
+            bmodel = os.path.join(bmodel_dir, 'compilation.bmodel')
+            if not os.path.exists(bmodel):
+                logging.warning(f'{bmodel} does not exist')
+                continue
+            profile_path = os.path.join(bmodel_dir, profile_fn)
+            config['prec'] = 'FP32'
+            run_model(
+                tree, config, name, b, profile_path,
+                bmodel, stat_f, extra)
+
+    int8_loops = raw_config.get('int8_loops') or \
+        tree.global_config.get('int8_loops') or [dict()]
+    for loop in int8_loops:
+        config = dict_override(raw_config, loop)
+        for b in config['bmnetu_batch_sizes']:
+            name = config.get('int8_outdir_template', '{}b.compilation').format(b)
+            bmodel_dir = os.path.join(workdir, name)
+            bmodel = os.path.join(bmodel_dir, 'compilation.bmodel')
+            if not os.path.exists(bmodel):
+                logging.warning(f'{bmodel} does not exist')
+                continue
+            profile_path = os.path.join(bmodel_dir, profile_fn)
+            config['prec'] = 'INT8'
+            run_model(
+                tree, config, name, b, profile_path,
+                bmodel, stat_f, extra)
+
+def collect_nntc_headers(tree, config):
+    extra = set(['prec'])
+    for loop in config.get('fp32_loops', [dict()]):
+        for k in loop.keys():
+            extra.add(k)
+    for loop in config.get('int8_loops', [dict()]):
+        for k in loop.keys():
+            extra.add(k)
+    return set(k for k in extra if 'template' not in k)
 
 def main():
     logging.basicConfig(
@@ -202,13 +257,21 @@ def main():
         sys.exit(1)
 
     tree = BuildTree(os.path.abspath('.'), args)
-    stat_fn = os.path.join(tree.global_config['workdir'], 'stats.csv')
-    run_func = run_mlir if args.mlir else run_nntc
+    stat_fn = os.path.join(tree.global_config['outdir'], 'stats.csv')
+    extra = set()
+    if args.mlir:
+        run_func = run_mlir
+    else:
+        run_func = run_nntc
+        for path, config in tree.walk():
+            for k in collect_nntc_headers(tree, config):
+                extra.add(k)
     with open(stat_fn, 'w') as f:
         csv_f = csv.writer(f)
         if option_cmodel_stats:
             csv_f.writerow([
                 'name',
+                *extra,
                 'shape',
                 'gops',
                 'time',
@@ -221,6 +284,7 @@ def main():
         else:
             csv_f.writerow([
                 'name',
+                *extra,
                 'shape',
                 'gops',
                 'time',
@@ -229,7 +293,7 @@ def main():
                 'ddr_utilization'])
 
         for path, config in tree.walk():
-            run_func(tree, path, config, csv_f)
+            run_func(tree, path, config, csv_f, extra)
 
 if __name__ == '__main__':
     main()

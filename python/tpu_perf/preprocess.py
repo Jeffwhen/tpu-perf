@@ -2,12 +2,8 @@
 _preprocess_functions = dict()
 
 def load_plugins():
-    import logging
-    import importlib
-    try:
-        importlib.import_module('dataset')
-    except ModuleNotFoundError:
-        logging.warning('No dataset plugin')
+    from . import util
+    util.load_plugins('dataset')
 
 def preprocess_method(key):
     def register(fn):
