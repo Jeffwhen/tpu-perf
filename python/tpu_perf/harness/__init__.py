@@ -1,12 +1,8 @@
 _harness_functions = dict()
 
 def load_plugins():
-    import logging
-    import importlib
-    try:
-        importlib.import_module('harness')
-    except ModuleNotFoundError:
-        pass
+    from .. import util
+    util.load_plugins('harness')
 
 def harness(key):
     def register(fn):

@@ -29,7 +29,7 @@ class Runner:
 
         def get_csv(stats):
             if key not in self.stat_files:
-                fn = os.path.join(tree.global_config['workdir'], f'{key}.csv')
+                fn = os.path.join(tree.global_config['outdir'], f'{key}.csv')
                 self.stat_files[key] = CSVWrapper(open(fn, 'w'))
                 csv_f = self.stat_files[key]
                 csv_f.writerow(['name'] + list(stats.keys()))

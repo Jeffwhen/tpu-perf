@@ -5,6 +5,8 @@ import yaml
 import copy
 import logging
 
+from .util import *
+
 def read_config(path):
     fn = os.path.join(path, 'config.yaml')
     if not os.path.exists(fn):
@@ -12,15 +14,6 @@ def read_config(path):
         return
     with open(fn) as f:
         return yaml.load(f, yaml.Loader)
-
-def hash_name(config):
-    from hashlib import md5
-    m = md5()
-    keys = [k for k in config]
-    keys.sort()
-    for k in keys:
-        m.update(str(config[k]).encode())
-    return m.hexdigest()
 
 def shape_key_and_param(shape):
     if type(shape) != list:
@@ -47,8 +40,8 @@ class BuildTree:
         self.root = root
         self.global_config = global_config = read_config(root) or dict()
         global_config['root'] = root
-        if 'workdir' not in global_config:
-            global_config['workdir'] = os.path.join(root, 'output')
+        if 'outdir' not in global_config:
+            global_config['outdir'] = os.path.join(root, 'output')
 
         self.cases = []
         if not args.full:
@@ -61,8 +54,18 @@ class BuildTree:
                 self.cases = lines
             if args.models:
                 self.cases = args.models
+        global_config['target'] = self.target = args.target
+        global_config['devices'] = args.devices
 
-        self.output_names = set()
+        # Target specific configs
+        if self.target in global_config:
+            specific = global_config.pop(self.target)
+            self.global_config = global_config = dict_override(global_config, specific)
+
+        # Expand all $(home) in global config
+        # This allow sub directory rejection
+        self.global_config = self.expand_all_variables(
+            dict(home=self.root), global_config, shallow=True, no_except=True)
 
     @staticmethod
     def add_arguments(parser):
@@ -71,6 +74,13 @@ class BuildTree:
             help='model directories to run')
         parser.add_argument('--full', action='store_true', help='Run all cases')
         parser.add_argument('--list', '-l', type=str, help='Case list')
+        parser.add_argument('--devices', '-d',
+            type=int, nargs='*', help='Devices',
+            default=[0])
+        parser.add_argument(
+            '--target', '-t', type=str, default='BM1684X',
+            choices=['BM1684', 'BM1684X'],
+            help='Target chip')
 
     def read_global_variable(self, name, config = dict(), default=None):
         if default is None and name not in self.global_config:
@@ -81,7 +91,10 @@ class BuildTree:
 
     whole_var_pattern = '^\$\(([a-z0-9_]+)\)$'
 
-    def expand_variables(self, config, string, stack=None, shallow=False):
+    def expand_variables(
+        self, config, string,
+        stack=None, shallow=False, no_except=False):
+
         if type(string) != str:
             return string
         if stack is None:
@@ -92,6 +105,8 @@ class BuildTree:
             var = var_match.group(1)
             value = config.get(var) or global_config.get(var)
             if not value:
+                if no_except:
+                    return string
                 logging.error(f'Invalid variable "{var}" in {string}')
                 raise Exception('invalid variable')
             if shallow:
@@ -104,6 +119,8 @@ class BuildTree:
             var = m.group(1)
             value = config.get(var) or global_config.get(var)
             if not value:
+                if no_except:
+                    continue
                 logging.error(f'Invalid variable "{var}" in {string}')
                 raise Exception('invalid variable')
             if var in stack:
@@ -116,17 +133,78 @@ class BuildTree:
             out = out.replace(raw, str(value))
         return out
 
+    def expand_all_variables(self, config, data, **kw_args):
+        if type(data) == str:
+            return self.expand_variables(config, data, **kw_args)
+        elif type(data) == list:
+            data = data.copy()
+            for i in range(len(data)):
+                data[i] = self.expand_all_variables(config, data[i], **kw_args)
+        elif type(data) == dict:
+            data = data.copy()
+            for k, v in data.items():
+                data[k] = self.expand_all_variables(config, v, **kw_args)
+        return data
+
+    def expand_all_whole_variables(self, config, data, **kw_args):
+        if type(data) == str:
+            if not re.match(self.whole_var_pattern, data):
+                return data
+            return self.expand_variables(config, data, **kw_args)
+        elif type(data) == list:
+            data = data.copy()
+            for i in range(len(data)):
+                data[i] = self.expand_all_whole_variables(config, data[i], **kw_args)
+        elif type(data) == dict:
+            data = data.copy()
+            for k, v in data.items():
+                data[k] = self.expand_all_whole_variables(config, v, **kw_args)
+        return data
+
     def read_dir(self, path):
+        path = os.path.abspath(path)
+        context = dict()
+        p = path
+        while True:
+            p = os.path.dirname(p)
+            if p == self.root:
+                break
+            if len(p) < 2:
+                break
+            fn = os.path.join(p, 'config.yaml')
+            if not os.path.isfile(fn):
+                continue
+            context = read_config(p) or dict()
+            if self.target in context:
+                specific = context.pop(self.target)
+                context = dict_override(context, specific)
+            context = self.expand_all_variables(
+                dict(home=p), context, shallow=True, no_except=True)
+            break
         for fn in os.listdir(path):
             if not fn.endswith('config.yaml'):
                 continue
             fn = os.path.join(path, fn)
             if not os.path.isfile(fn):
                 continue
-            for ret in self._read_dir(fn):
+            for ret in self._read_dir(fn, context):
                 yield ret
 
-    def _read_dir(self, config_fn):
+    def hash_name(self, config):
+        from hashlib import md5
+        m = md5()
+        keys = [k for k in config]
+        keys.sort()
+        for k in keys:
+            v = config[k]
+            if type(v) == str and '/' in v and os.path.exists(v):
+                # v is a path
+                # Convert to relative path
+                v = os.path.relpath(v, self.root)
+            m.update(f'{k}: {v};'.encode())
+        return m.hexdigest()
+
+    def _read_dir(self, config_fn, context = dict()):
         path = os.path.dirname(config_fn)
         global_config = self.global_config
 
@@ -138,22 +216,20 @@ class BuildTree:
         if config.get('ignore'):
             return
 
+        if self.target in config:
+            specific = config.pop(self.target)
+            config = dict_override(config, specific)
+
+        config = dict_override(config, context)
+
         if 'name' not in config:
             logging.error(f'Invalid config {config_fn}')
             raise RuntimeError('Invalid config')
 
         # Pre expand non-string variables. Because variable
         # processing logic might rely on this.
-        for k in config:
-            if type(config[k]) != str:
-                continue
-            if not re.match(self.whole_var_pattern, config[k]):
-                continue
-            try:
-                config[k] = self.expand_variables(config, config[k], shallow=True)
-            except:
-                print(k, config[k])
-                raise
+        config = self.expand_all_whole_variables(config, config, shallow=True)
+
         if 'harness' in config and type(config['harness']['args']) != list:
             config['harness']['args'] = [config['harness']['args']]
 
@@ -180,7 +256,7 @@ class BuildTree:
                 logging.error(f'Duplicate output name {name}')
                 raise RuntimeError('invalid output name')
             self.output_names.add(name)
-            workdir = os.path.join(global_config['workdir'], name)
+            workdir = os.path.join(global_config['outdir'], name)
             os.makedirs(workdir, exist_ok=True)
 
             # Default configuration
@@ -190,7 +266,7 @@ class BuildTree:
                 config['bmnetu_batch_sizes'] = [1]
 
             if 'input' in config:
-                key = hash_name(config['input'])
+                key = self.hash_name(config['input'])
                 data_dir = self.read_global_variable(
                     'data_dir', default='$(root)/data')
                 config['lmdb_out'] = os.path.join(data_dir, key)
@@ -198,6 +274,7 @@ class BuildTree:
             yield path, copy.deepcopy(config)
 
     def walk(self, path=None):
+        self.output_names = set()
         if path is None:
             if self.cases:
                 for path in self.cases:
