@@ -15,7 +15,7 @@ pip3 install setuptools wheel
 libsophon_dst=$DIR/dependencies/libsophon
 mkdir -p $libsophon_dst
 tar --wildcards --strip-components=4 -xvf $DIR/dependencies/libsophon*.tar.gz \
-    -C $libsophon_dst libsophon_0.2.3_x86_64/opt/sophon/libsophon*
+    -C $libsophon_dst libsophon_*_x86_64/opt/sophon/libsophon*
 
 protoc_zip=protoc-3.19.4-linux-x86_64.zip
 wget -O /tmp/$protoc_zip \

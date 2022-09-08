@@ -197,6 +197,9 @@ def run_nntc(tree, path, raw_config, stat_f, extra):
     fp32_loops = raw_config.get('fp32_loops') or \
         tree.global_config.get('fp32_loops') or [dict()]
     for loop in fp32_loops:
+        if 'fp32_compile_options' not in raw_config:
+            # Skip fp32 bmrt test
+            break
         config = dict_override(raw_config, loop)
         batch_sizes = config.get('fp32_batch_sizes', [1])
         for b in batch_sizes:
@@ -215,6 +218,9 @@ def run_nntc(tree, path, raw_config, stat_f, extra):
     int8_loops = raw_config.get('int8_loops') or \
         tree.global_config.get('int8_loops') or [dict()]
     for loop in int8_loops:
+        if 'bmnetu_options' not in raw_config:
+            # Skip bmrt test
+            break
         config = dict_override(raw_config, loop)
         for b in config['bmnetu_batch_sizes']:
             name = config.get('int8_outdir_template', '{}b.compilation').format(b)
