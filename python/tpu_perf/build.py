@@ -11,7 +11,7 @@ import time
 def replace_shape_batch(cmd, batch_size):
     match = re.search('-shapes *(\[.*\])', cmd)
     if match is None:
-        logging.error(f'failed to found --shapes in "{cmd}"')
+        logging.error(f'failed to find --shapes [n,c,h,w] in "{cmd}"')
         raise RuntimeError('Invalid argument')
     shapes_str = match.group(1)
     shapes = eval(shapes_str)
@@ -105,31 +105,32 @@ def build_nntc(tree, path, config):
         elaps = format_seconds(time.monotonic() - start)
         logging.info(f'{name} calibration finished in {elaps}.')
 
-    if 'fp32_compile_options' in config:
-        fp32_pool = CommandExecutor(workdir, env)
+    if 'fp_compile_options' in config:
+        fp_pool = CommandExecutor(workdir, env)
         start = time.monotonic()
-        logging.info(f'Building FP32 bmodel {name}...')
-        batch_sizes = config.get('fp32_batch_sizes', [1]) \
+        logging.info(f'Building float bmodel {name}...')
+        batch_sizes = config.get('fp_batch_sizes', [1]) \
             if not option_time_only else [1]
-        fp32_loops = config.get('fp32_loops') or \
-            tree.global_config.get('fp32_loops') or [dict()]
-        for loop in fp32_loops:
+        fp_loops = config.get('fp_loops') or \
+            tree.global_config.get('fp_loops') or [dict()]
+        for loop in fp_loops:
             loop_config = dict_override(config, loop)
-            cmd = tree.expand_variables(loop_config, loop_config["fp32_compile_options"])
+            cmd = tree.expand_variables(loop_config, loop_config["fp_compile_options"])
             for batch_size in batch_sizes:
-                if 'fp32_batch_sizes' in config:
+                if 'fp_batch_sizes' in config:
                     batch_cmd = replace_shape_batch(cmd, batch_size)
                 else:
                     batch_cmd = cmd
                 outdir = loop_config.get(
-                    'fp32_outdir_template',
-                    '{}b.fp32.compilation').format(batch_size)
-                fp32_pool.put(
+                    'fp_outdir_template',
+                    '{}b.fp.compilation').format(batch_size)
+                fp_pool.put(
                     outdir,
-                    f'{batch_cmd} --outdir {outdir}')
-        fp32_pool.wait()
+                    f'{batch_cmd} --outdir {outdir}',
+                    env=loop_config.get('build_env'))
+        fp_pool.wait()
         elaps = format_seconds(time.monotonic() - start)
-        logging.info(f'FP32 bmodel {name} done in {elaps}.')
+        logging.info(f'float bmodel {name} done in {elaps}.')
 
     if 'bmnetu_options' in config:
         # Build int8 bmodel
@@ -146,7 +147,8 @@ def build_nntc(tree, path, config):
                     'int8_outdir_template', '{}b.compilation').format(b)
                 int8_pool.put(
                     outdir,
-                    f'{cmd} --max_n {b} --outdir {outdir}')
+                    f'{cmd} --max_n {b} --outdir {outdir}',
+                    env=loop_config.get('build_env'))
         int8_pool.wait()
         elaps = format_seconds(time.monotonic() - start)
         logging.info(f'INT8 bmodel {name} done in {elaps}.')
