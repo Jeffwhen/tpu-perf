@@ -9,11 +9,11 @@ from .util import *
 import time
 
 def replace_shape_batch(cmd, batch_size):
-    match = re.search('-shapes *(\[.*\])', cmd)
+    match = re.search('-shapes(=| *)["\']*(\[.*\],?)["\']*', cmd)
     if match is None:
         logging.error(f'failed to find --shapes [n,c,h,w] in "{cmd}"')
         raise RuntimeError('Invalid argument')
-    shapes_str = match.group(1)
+    shapes_str = match.group(2)
     shapes = eval(shapes_str)
     if type(shapes[0]) != list:
         shapes = [shapes]
