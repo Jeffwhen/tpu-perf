@@ -95,7 +95,12 @@ def build_nntc(tree, path, config):
         model_path = tree.expand_variables(config, config['model'])
         model_fn = os.path.basename(model_path)
         hack_model_path = os.path.join(workdir, model_fn)
-        shutil.copyfile(model_path, hack_model_path)
+        if os.path.isdir(model_path):
+            if os.path.isdir(hack_model_path):
+                shutil.rmtree(hack_model_path)
+            shutil.copytree(model_path, hack_model_path)
+        else:
+            shutil.copyfile(model_path, hack_model_path)
         config['model'] = hack_model_path
 
         cmd = tree.expand_variables(config, config[cali_key])
