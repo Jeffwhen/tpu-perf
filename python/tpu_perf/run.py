@@ -195,16 +195,16 @@ def run_nntc(tree, path, raw_config, stat_f, extra):
     profile_fn = 'compiler_profile_0.dat' \
         if tree.global_config['target'] == 'BM1684' else \
         'compiler_profile_0.txt'
-    fp32_loops = raw_config.get('fp32_loops') or \
-        tree.global_config.get('fp32_loops') or [dict()]
-    for loop in fp32_loops:
-        if 'fp32_compile_options' not in raw_config:
-            # Skip fp32 bmrt test
+    fp_loops = raw_config.get('fp_loops') or \
+        tree.global_config.get('fp_loops') or [dict()]
+    for loop in fp_loops:
+        if 'fp_compile_options' not in raw_config:
+            # Skip fp bmrt test
             break
         config = dict_override(raw_config, loop)
-        batch_sizes = config.get('fp32_batch_sizes', [1])
+        batch_sizes = config.get('fp_batch_sizes', [1])
         for b in batch_sizes:
-            name = config.get('fp32_outdir_template', '{}b.fp32.compilation').format(b)
+            name = config.get('fp_outdir_template', '{}b.fp.compilation').format(b)
             bmodel_dir = os.path.join(workdir, name)
             bmodel = os.path.join(bmodel_dir, 'compilation.bmodel')
             if not os.path.exists(bmodel):
@@ -238,7 +238,7 @@ def run_nntc(tree, path, raw_config, stat_f, extra):
 
 def collect_nntc_headers(tree, config):
     extra = set(['prec'])
-    for loop in config.get('fp32_loops', [dict()]):
+    for loop in config.get('fp_loops', [dict()]):
         for k in loop.keys():
             extra.add(k)
     for loop in config.get('int8_loops', [dict()]):
@@ -281,8 +281,8 @@ def main():
                 *extra,
                 'shape',
                 'gops',
-                'time',
-                'cmodel_estimated_time',
+                'time(ms)',
+                'cmodel_estimated_time(ms)',
                 'mac_utilization',
                 'cpu_usage',
                 'cmodel_estimated_mac_utilization',
@@ -294,7 +294,7 @@ def main():
                 *extra,
                 'shape',
                 'gops',
-                'time',
+                'time(ms)',
                 'mac_utilization',
                 'cpu_usage',
                 'ddr_utilization'])
