@@ -124,10 +124,13 @@ def build_nntc(tree, path, config):
                 outdir = loop_config.get(
                     'fp_outdir_template',
                     '{}b.fp.compilation').format(batch_size)
+                env = [
+                    tree.expand_variables(loop_config, v)
+                    for v in loop_config.get('build_env', [])]
                 fp_pool.put(
                     outdir,
                     f'{batch_cmd} --outdir {outdir}',
-                    env=loop_config.get('build_env'))
+                    env=env)
         fp_pool.wait()
         elaps = format_seconds(time.monotonic() - start)
         logging.info(f'float bmodel {name} done in {elaps}.')
@@ -145,10 +148,13 @@ def build_nntc(tree, path, config):
             for b in loop_config['bmnetu_batch_sizes']:
                 outdir = loop_config.get(
                     'int8_outdir_template', '{}b.compilation').format(b)
+                env = [
+                    tree.expand_variables(loop_config, v)
+                    for v in loop_config.get('build_env', [])]
                 int8_pool.put(
                     outdir,
                     f'{cmd} --max_n {b} --outdir {outdir}',
-                    env=loop_config.get('build_env'))
+                    env=env)
         int8_pool.wait()
         elaps = format_seconds(time.monotonic() - start)
         logging.info(f'INT8 bmodel {name} done in {elaps}.')
