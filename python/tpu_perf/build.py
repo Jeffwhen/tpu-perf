@@ -115,7 +115,7 @@ def build_nntc(tree, path, config):
         start = time.monotonic()
         logging.info(f'Building float bmodel {name}...')
         batch_sizes = config.get('fp_batch_sizes', [1]) \
-            if not option_time_only else [1]
+            if option_time_only else [1]
         fp_loops = config.get('fp_loops') or \
             tree.global_config.get('fp_loops') or [dict()]
         for loop in fp_loops:
