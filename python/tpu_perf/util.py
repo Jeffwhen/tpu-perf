@@ -18,6 +18,9 @@ def load_plugins(name):
 
 def dict_override(a, b):
     r = a.copy()
+    if type(b) != dict:
+        logging.error(f'\"{b}\" is not a dict')
+        raise ValueError('Invalid argument')
     for k, v in b.items():
         r[k] = v
     return r
