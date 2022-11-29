@@ -48,6 +48,8 @@ def parse_stats(string):
 def parse_profile(fn):
     with open(fn) as f:
         lines = f.read()
+    if not lines:
+        return
     lines = lines[lines.find('API_END'):]
     data = dict()
     for pair in re.finditer('(\w+) *: *([\d\.]+)', lines):
@@ -129,10 +131,24 @@ def run_model(tree, config, name, b, profile_path, bmodel, stat_f, extra):
 
     # If profile exists, calculate mac & ddr utilization
     if tree.global_config['target'] == 'BM1684':
-        mac_total = 17.6
+        if config['prec'] == 'FP32':
+            mac_total = 2.2
+        elif config['prec'] == 'INT8':
+            mac_total = 17.6
+        else:
+            logging.error(f'Invalid prec type "{config["prec"]}" for BM1684')
+            raise RuntimeError('Invalid prec')
         ddr_total = 32
     elif tree.global_config['target'] == 'BM1684X':
-        mac_total = 32
+        if config['prec'] == 'FP32':
+            mac_total = 2
+        elif config['prec'] == 'FP16' or config['prec'] == 'BF16':
+            mac_total = 16
+        elif config['prec'] == 'INT8':
+            mac_total = 32
+        else:
+            logging.error(f'Invalid prec type "{config["prec"]}" for BM1684')
+            raise RuntimeError('Invalid prec')
         ddr_total = 64
     else:
         logging.error(f'Invalid target {tree.global_config["target"]}')
@@ -164,7 +180,10 @@ def run_model(tree, config, name, b, profile_path, bmodel, stat_f, extra):
         if option_cmodel_stats:
             row.append(f'{calc_ddr_bandwidth(est_time):.2%}')
     else:
-        row.extend(['N/A'] * (6 if option_cmodel_stats else 3))
+        ext = ['N/A'] * (5 if option_cmodel_stats else 2)
+        cpu_index = 2 if option_cmodel_stats else 1
+        ext.insert(cpu_index, f'{cpu_percent:.2%}')
+        row.extend(ext)
 
     stat_f.writerow(row)
 
@@ -211,7 +230,8 @@ def run_nntc(tree, path, raw_config, stat_f, extra):
                 logging.warning(f'{bmodel} does not exist')
                 continue
             profile_path = os.path.join(bmodel_dir, profile_fn)
-            config['prec'] = 'FP32'
+            if 'prec' not in config:
+                config['prec'] = 'FP32'
             run_model(
                 tree, config, name, b, profile_path,
                 bmodel, stat_f, extra)
@@ -231,7 +251,8 @@ def run_nntc(tree, path, raw_config, stat_f, extra):
                 logging.warning(f'{bmodel} does not exist')
                 continue
             profile_path = os.path.join(bmodel_dir, profile_fn)
-            config['prec'] = 'INT8'
+            if 'prec' not in config:
+                config['prec'] = 'INT8'
             run_model(
                 tree, config, name, b, profile_path,
                 bmodel, stat_f, extra)
@@ -244,7 +265,12 @@ def collect_nntc_headers(tree, config):
     for loop in config.get('int8_loops', [dict()]):
         for k in loop.keys():
             extra.add(k)
-    return set(k for k in extra if 'template' not in k)
+    def skip_if(k):
+        if 'template' in k:
+            return True
+        if k in {'build_env'}:
+            return True
+    return set(k for k in extra if not skip_if(k))
 
 def main():
     logging.basicConfig(
