@@ -82,7 +82,8 @@ def run_model(tree, config, name, b, profile_path, bmodel, stat_f, extra):
 
     if os.path.exists(profile_path):
         info = parse_profile(profile_path)
-        rounds = int(1200 / info['runtime'])
+        if info is not None:
+            rounds = int(1200 / info['runtime'])
     max_rounds = 10000
     if rounds > max_rounds:
         rounds = max_rounds
