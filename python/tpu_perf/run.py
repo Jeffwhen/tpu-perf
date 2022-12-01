@@ -188,8 +188,8 @@ def run_model(tree, config, name, b, profile_path, bmodel, stat_f, extra):
 
     stat_f.writerow(row)
 
-def run_mlir(tree, path, config, stat_f, extra):
-    workdir = config['workdir']
+def run_mlir(tree, path, raw_config, stat_f, extra):
+    workdir = raw_config['workdir']
     for dirpath, dirnames, filenames in os.walk(workdir):
         for fn in filenames:
             if not fn.endswith('.bmodel'):
@@ -197,8 +197,10 @@ def run_mlir(tree, path, config, stat_f, extra):
             name = os.path.splitext(fn)[0]
             bmodel = os.path.join(dirpath, fn)
             profile_path = bmodel + '.compiler_profile_0.txt'
-            config = config.copy()
+            config = raw_config.copy()
             config['name'] = name
+            if 'prec' not in config:
+                config['prec'] = 'INT8' if 'int8' in name else 'FP32'
             run_model(
                 tree, config,
                 name,
