@@ -16,6 +16,13 @@ class CSVWrapper:
         self.writer.writerow(*args, **kw_args)
         self.fd.flush()
 
+import ctypes
+def malloc_trim():
+    try:
+        ctypes.CDLL('libc.so.6').malloc_trim(0)
+    except OSError as err:
+        logging.error(f'{err}')
+
 class Runner:
     def __init__(self):
         self.stat_files = dict()
@@ -43,6 +50,7 @@ class Runner:
                 logging.warning(f'{bmodel} does not exist')
                 continue
             stats = harness(tree, config, args)
+            malloc_trim()
             name = [f'{config["name"]}-{args["name"]}']
             get_csv(stats).writerow(name + [
                 f'{v:.2%}' if type(v) == float else str(v)
