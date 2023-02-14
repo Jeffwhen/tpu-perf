@@ -40,8 +40,10 @@ class BuildTree:
         self.root = root
         self.global_config = global_config = read_config(root) or dict()
         global_config['root'] = root
-        if 'outdir' not in global_config:
-            global_config['outdir'] = os.path.join(root, 'output')
+        outdir = 'output'
+        if args.outdir:
+            outdir = args.outdir
+        global_config['outdir'] = os.path.join(root, outdir)
 
         self.cases = []
         if not args.full:
@@ -73,6 +75,7 @@ class BuildTree:
             'models', metavar='MODEL', type=str, nargs='*',
             help='model directories to run')
         parser.add_argument('--full', action='store_true', help='Run all cases')
+        parser.add_argument('--outdir', '-o', type=str, help='Output path')
         parser.add_argument('--list', '-l', type=str, help='Case list')
         parser.add_argument('--devices', '-d',
             type=int, nargs='*', help='Devices',
