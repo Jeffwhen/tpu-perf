@@ -71,7 +71,6 @@ def run_model(tree, config, name, b, profile_path, bmodel, stat_f, extra):
         for v in config.get('run_env', [])]
     env.append('BMRUNTIME_PROFILE_OUT_DIR={b}b.profiledata')
     pool = CommandExecutor(workdir, env)
-    rounds = math.ceil(config.get('time_rounds', 2000) / b)
     rt_cmp = config.get('runtime_cmp')
     iter_opt = tree.global_config.get('iter_opt', '--loopnum')
     if 'iter_opt' in config:
@@ -79,17 +78,22 @@ def run_model(tree, config, name, b, profile_path, bmodel, stat_f, extra):
     bmodel_dir = os.path.dirname(bmodel)
 
     info = None
-
+    rounds = None
     if os.path.exists(profile_path):
         info = parse_profile(profile_path)
         if info is not None:
             rounds = int(1200 / info['runtime'])
-    max_rounds = 10000
-    min_rounds = 1
-    if rounds > max_rounds:
-        rounds = max_rounds
-    if rounds < min_rounds:
-        rounds = min_rounds
+            max_rounds = 10000
+            min_rounds = 1
+            if rounds > max_rounds:
+                rounds = max_rounds
+            if rounds < min_rounds:
+                rounds = min_rounds
+    if 'time_rounds' in config:
+        rounds = math.ceil(config['time_rounds'] / b)
+    elif rounds is None:
+        rounds = 2000 / b
+
     full_name = f'{config["name"]} {name}'
     logging.info(f'Run {rounds} times for {full_name}')
 
