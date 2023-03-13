@@ -29,8 +29,10 @@ def dict_override(a, b):
 
 from datetime import timedelta
 def format_seconds(s):
-    delta = timedelta(seconds=s)
+    days = s // (24 * 60 * 60)
+    delta = timedelta(seconds=s % (24 * 60 * 60))
     pairs = zip(
         [int(v.split('.')[0]) for v in str(delta).split(':')],
         ['hours', 'minutes', 'seconds'])
-    return ' '.join(f'{v} {u}' for v, u in pairs if v) or '0 second'
+    ret = ' '.join(f'{v} {u}' for v, u in pairs if v) or '0 second'
+    return f'{days} days {ret}' if days else ret
