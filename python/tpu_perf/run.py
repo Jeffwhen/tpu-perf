@@ -292,7 +292,6 @@ def main():
     parser = argparse.ArgumentParser(description='tpu-perf benchmark tool')
     BuildTree.add_arguments(parser)
     parser.add_argument('--cmodel', action='store_true')
-    parser.add_argument('--mlir', action='store_true')
     args = parser.parse_args()
     global option_cmodel_stats
     option_cmodel_stats = args.cmodel

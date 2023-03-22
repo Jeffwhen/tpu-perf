@@ -175,7 +175,6 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description='tpu-perf benchmark tool')
     parser.add_argument('--time', action='store_true')
-    parser.add_argument('--mlir', action='store_true')
     parser.add_argument('--exit-on-error', action='store_true')
     BuildTree.add_arguments(parser)
     args = parser.parse_args()
